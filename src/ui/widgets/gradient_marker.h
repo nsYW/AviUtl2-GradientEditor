@@ -1,0 +1,173 @@
+#ifndef GRADIENT_MARKER_H
+#define GRADIENT_MARKER_H
+
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <iterator>
+#include <ranges>
+#include <vector>
+
+#include "imgui.h"
+
+struct GradientMarkerData {
+    int32_t id{0};
+    float pos{0.0f};
+    ImVec4 color{1.0f, 1.0f, 1.0f, 1.0f};
+    struct Midpoint {
+        float ratio{0.5f};
+        float pos{0.0f};
+    } midpoint{};
+};
+
+class GradientMarkerManager {
+private:
+    struct Config {
+        uint32_t marker_width{20};
+        uint32_t marker_height{20};
+        uint32_t triangle_height{10};
+        uint32_t midpoint_width{20};
+    } m_config;
+
+    struct Regions {
+        ImVec2 midpoint_p0{}, midpoint_p1{};
+        ImVec2 gradient_p0{}, gradient_p1{};
+        ImVec2 marker_p0{}, marker_p1{};
+    } m_regions;
+
+    struct State {
+        int32_t selected_marker_id{0};
+        int32_t selected_midpoint_id{0};
+        int32_t clicked_marker_id{-4};    // Region::OutSide
+        int32_t clicked_midpoint_id{-4};  // Region::OutSide
+        int32_t marker_id_counter{2};
+        bool is_marker_added{false};
+        ImVec4 picker_cur_color{1.0f, 1.0f, 1.0f, 1.0f};
+        ImVec4 picker_backup_color{1.0f, 1.0f, 1.0f, 1.0f};
+        bool is_open_popup = false;
+    } m_state;
+
+    std::vector<GradientMarkerData> m_markers = {
+        {.id = 0, .pos = 0.0f, .color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f), .midpoint = {.ratio = 0.5f, .pos = 0.5}},
+        {.id = 1, .pos = 1.0f, .color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), .midpoint = {.ratio = 0.5f, .pos = FLT_MIN}}};
+
+    enum class Region : int32_t {
+        Marker   = -1,
+        Midpoint = -2,
+        Gradient = -3,
+        OutSide  = -4
+    };
+
+public:
+    GradientMarkerManager()
+    {
+    }
+
+    //
+    // ゲッター
+    //
+    [[nodiscard]] uint32_t getMarkerWidth() const noexcept { return m_config.marker_width; }
+    [[nodiscard]] uint32_t getMarkerRegionHeight() const noexcept { return m_config.marker_height + m_config.triangle_height; }
+    [[nodiscard]] uint32_t getMidpointHeight() const noexcept { return m_config.midpoint_width; }
+    [[nodiscard]] ImVec2 getGradientRegionP0() const noexcept { return m_regions.gradient_p0; };
+    [[nodiscard]] int32_t getIndexById(const int32_t id) const;
+    [[nodiscard]] int32_t getIdByIndex(const uint32_t index) const;
+    [[nodiscard]] float getMarkerPosFromMousePos(const ImVec2& mouse_pos) const;
+
+    [[nodiscard]] const std::vector<GradientMarkerData>& getMarkers() const noexcept { return m_markers; }
+    [[nodiscard]] std::vector<float> getMarkerPos() const;
+    [[nodiscard]] std::vector<ImVec4> getMarkerColors() const;
+    [[nodiscard]] std::vector<float> getMidpointRatios() const;
+
+    [[nodiscard]] float getMarkerPos(const int32_t id) const;
+    [[nodiscard]] ImVec4 getMarkerColor(const int32_t id) const;
+    [[nodiscard]] float getMidpointRatio(const int32_t id) const;
+
+    [[nodiscard]] float getSelectedMarkerPos() const;
+    [[nodiscard]] ImVec4 getSelectedMarkerColor() const;
+    [[nodiscard]] float getSelectedMidpointRatio() const;
+    [[nodiscard]] int32_t getSelectedMarkerId() const noexcept { return m_state.selected_marker_id; }
+    [[nodiscard]] int32_t getSelectedMidpointId() const noexcept { return m_state.selected_midpoint_id; }
+
+    [[nodiscard]] int32_t getMarkerIdUnderMouse(const ImVec2& mouse_pos) const;
+    [[nodiscard]] int32_t getMidpointIdUnderMouse(const ImVec2& mouse_pos) const;
+    [[nodiscard]] ImVec2 getMousePosOnGradient(const ImVec2& mouse_pos) const;
+
+    [[nodiscard]] ImVec4 getColorPickerColor() const noexcept { return m_state.picker_cur_color; }
+    bool isMarkerAdded() const noexcept { return m_state.is_marker_added; }
+    bool isOpenPopup() const noexcept { return m_state.is_open_popup; }
+
+    //
+    // セッター
+    //
+    void setMarkerWidth(const uint32_t width) noexcept
+    {
+        m_config.marker_width    = width;
+        m_config.marker_height   = width;
+        m_config.midpoint_width  = width;
+        m_config.triangle_height = static_cast<uint32_t>(width * 0.5f);
+    }
+
+    void setMarkerPos(const int32_t id, const float pos);
+    void setMarkerColor(const int32_t id, const ImVec4& color);
+    void setMidpointRatio(const int32_t id, const float ratio);
+
+    void setSelectedMarkerPos(const float pos);
+    void setSelectedMarkerColor(const ImVec4& color);
+    void setSelectedMidpointRatio(const float ratio);
+
+    void setMidpointRegion(const ImVec2& p0, const ImVec2& p1) noexcept;
+    void setGradientRegion(const ImVec2& p0, const ImVec2& p1) noexcept;
+    void setMarkerRegion(const ImVec2& p0, const ImVec2& p1) noexcept;
+
+    void setMarkerColorPickerColor(const ImVec4& color) noexcept { m_state.picker_cur_color = color; }
+    void setBackupPickerColor(const ImVec4& color) noexcept { m_state.picker_backup_color = color; }
+
+    //
+    // 操作
+    //
+    void changeMarkerCount(const uint32_t marker_count);
+    void setDefaultMarkers(const std::vector<GradientMarkerData>& marker_data = {
+                               {.id = 0, .pos = 0.0f, .color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f), .midpoint = {.ratio = 0.5f, .pos = 0.5}},
+                               {.id = 1, .pos = 1.0f, .color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), .midpoint = {.ratio = 0.5f, .pos = FLT_MIN}}});
+    void moveMarker(const int32_t id, const float new_pos);
+    void moveMidpoint(const int32_t id, const float new_pos);
+    void moveMidpointRatio(const int32_t id, const float new_ratio);
+    void reverseMarkers();
+    void resetMidpoints();
+    void sortMarkers();
+    void sortMarkersById();
+    void addMarker(const int32_t id, const float marker_pos, const ImVec4& color, const float midpoint_ratio = 0.5f);
+    void changeColor(const int32_t id, const ImVec4& new_color);
+    void showColorPickerPopup();
+    void deleteMarker(const int32_t id);
+    void deleteSelectedMarker();
+    void distributeMarkersEvenly();
+    void distributeMarkersAndMipointsEvenly();
+
+    //
+    // イベント
+    //
+    void onClickedMarker(const ImVec2& mouse_pos, bool use_default_action, std::move_only_function<void(void*)> func, void* param);
+    void onDoubleClickedMarker(const ImVec2& mouse_pos, bool use_default_action = true, std::move_only_function<void(void*)> func = nullptr, void* param = nullptr);
+
+    //
+    // 更新
+    //
+    void updateMidpointsPos();
+    void updateMarkerId();
+    void updateMarker(const ImVec2& mouse_pos, const ImVec4& new_marker_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f), const uint32_t max_marker_count = 10);
+    void updateMidpoint(const ImVec2& mouse_pos);
+
+    //
+    // 描画
+    //
+    void drawMarker(const float pos, const ImVec4& color, const int32_t id) const;
+    void drawMarkers() const;
+    void drawMidpoint(const float pos, const ImVec4& color) const;
+    void drawMidpoints() const;
+    void highlightMarker(const float pos, const ImVec4& highlight_color, const float thickness = 2.0f, const float offset = 2.0f) const;
+    void highlightMidpoint(const float pos, const ImVec4& highlight_color) const;
+};
+
+#endif  // GRADIENT_MARKER_H

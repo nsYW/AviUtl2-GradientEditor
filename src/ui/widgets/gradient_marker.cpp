@@ -1,0 +1,675 @@
+#include "gradient_marker.h"
+#include <iostream>
+
+float GradientMarkerManager::getMarkerPos(const int32_t id) const
+{
+    int32_t idx = getIndexById(id);
+    if (idx == -1) return 0.0f;
+    return m_markers[idx].pos;
+}
+
+ImVec4 GradientMarkerManager::getMarkerColor(const int32_t id) const
+{
+    int32_t idx = getIndexById(id);
+    if (idx == -1) return ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    return m_markers[idx].color;
+}
+
+float GradientMarkerManager::getMidpointRatio(const int32_t id) const
+{
+    int32_t idx = getIndexById(id);
+    if (idx == -1) return 0.5f;
+    return m_markers[idx].midpoint.ratio;
+}
+
+float GradientMarkerManager::getSelectedMarkerPos() const
+{
+    int32_t idx = getIndexById(m_state.selected_marker_id);
+    return m_markers[idx].pos;
+}
+
+ImVec4 GradientMarkerManager::getSelectedMarkerColor() const
+{
+    int32_t idx = getIndexById(m_state.selected_marker_id);
+    return m_markers[idx].color;
+}
+
+float GradientMarkerManager::getSelectedMidpointRatio() const
+{
+    int32_t idx = getIndexById(m_state.selected_midpoint_id);
+    return m_markers[idx].midpoint.ratio;
+}
+
+// IDからインデックスを取得する
+int32_t GradientMarkerManager::getIndexById(const int32_t id) const
+{
+    auto it = std::find_if(m_markers.begin(), m_markers.end(),
+                           [id](const GradientMarkerData& m) { return m.id == id; });
+
+    if (it != m_markers.end()) {
+        return static_cast<int>(std::distance(m_markers.begin(), it));
+    }
+    return -1;
+}
+
+int32_t GradientMarkerManager::getIdByIndex(const uint32_t index) const
+{
+    if (index < 0 || index >= static_cast<uint32_t>(std::ssize(m_markers))) {
+        return -1;
+    }
+    return m_markers[index].id;
+}
+
+std::vector<float> GradientMarkerManager::getMarkerPos() const
+{
+    std::vector<float> pos(static_cast<uint32_t>(std::ssize(m_markers)));
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        pos[static_cast<uint32_t>(i)] = marker.pos;
+    }
+    return pos;
+}
+
+std::vector<ImVec4> GradientMarkerManager::getMarkerColors() const
+{
+    std::vector<ImVec4> colors(static_cast<uint32_t>(std::ssize(m_markers)));
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        colors[static_cast<uint32_t>(i)] = marker.color;
+    }
+    return colors;
+}
+
+std::vector<float> GradientMarkerManager::getMidpointRatios() const
+{
+    std::vector<float> ratios(static_cast<uint32_t>(std::ssize(m_markers)) - 1);
+    for (const auto& [i, marker] : m_markers | std::views::take(std::ssize(m_markers) - 1) | std::views::enumerate) {
+        ratios[static_cast<uint32_t>(i)] = marker.midpoint.ratio;
+    }
+    return ratios;
+}
+
+float GradientMarkerManager::getMarkerPosFromMousePos(const ImVec2& mouse_pos) const
+{
+    ImVec2 mouse_pos_on_gradient = getMousePosOnGradient(mouse_pos);
+    float marker_pos             = std::clamp(mouse_pos_on_gradient.x / (m_regions.gradient_p1.x - m_regions.gradient_p0.x), 0.0f, 1.0f);
+    return marker_pos;
+}
+
+void GradientMarkerManager::setMarkerPos(const int32_t id, const float pos)
+{
+    moveMarker(id, pos);
+}
+
+void GradientMarkerManager::setMarkerColor(const int32_t id, const ImVec4& color)
+{
+    int32_t idx = getIndexById(id);
+    if (idx == -1) return;
+    m_markers[idx].color = color;
+}
+
+void GradientMarkerManager::setMidpointRatio(const int32_t id, const float ratio)
+{
+    moveMidpointRatio(id, ratio);
+}
+
+void GradientMarkerManager::setSelectedMarkerPos(const float pos)
+{
+    moveMarker(m_state.selected_marker_id, pos);
+}
+
+void GradientMarkerManager::setSelectedMarkerColor(const ImVec4& color)
+{
+    int32_t idx = getIndexById(m_state.selected_marker_id);
+    if (idx == -1) return;
+    m_markers[idx].color = color;
+}
+
+void GradientMarkerManager::setSelectedMidpointRatio(const float ratio)
+{
+    moveMidpointRatio(m_state.selected_midpoint_id, ratio);
+}
+
+void GradientMarkerManager::setMidpointRegion(const ImVec2& p0, const ImVec2& p1) noexcept
+{
+    m_regions.midpoint_p0 = p0;
+    m_regions.midpoint_p1 = p1;
+}
+
+void GradientMarkerManager::setGradientRegion(const ImVec2& p0, const ImVec2& p1) noexcept
+{
+    m_regions.gradient_p0 = p0;
+    m_regions.gradient_p1 = p1;
+}
+
+void GradientMarkerManager::setMarkerRegion(const ImVec2& p0, const ImVec2& p1) noexcept
+{
+    m_regions.marker_p0 = p0;
+    m_regions.marker_p1 = p1;
+}
+
+void GradientMarkerManager::changeMarkerCount(const uint32_t marker_count)
+{
+    if (marker_count < 2) return;
+
+    uint32_t cur_marker_count = static_cast<uint32_t>(std::ssize(m_markers));
+    if (marker_count == cur_marker_count) {
+        return;
+    } else if (marker_count > cur_marker_count) {
+        for (uint32_t i = 0; i < marker_count - cur_marker_count; ++i) {
+            addMarker(m_state.marker_id_counter, 0.0f, {1.0f, 1.0f, 1.0f, 1.0f});
+            ++m_state.marker_id_counter;
+        }
+    } else {
+        for (uint32_t i = 0; i < cur_marker_count - marker_count; ++i) {
+            if (!m_markers.empty()) {
+                deleteMarker(getIdByIndex(static_cast<uint32_t>(std::ssize(m_markers)) - 1));
+            }
+        }
+    }
+
+    sortMarkers();
+    updateMidpointsPos();
+}
+
+void GradientMarkerManager::setDefaultMarkers(const std::vector<GradientMarkerData>& marker_data)
+{
+    m_markers.clear();
+    for (const auto& [i, marker] : marker_data | std::views::enumerate) {
+        GradientMarkerData data = {
+            .id       = static_cast<int32_t>(i),
+            .pos      = std::clamp(marker.pos, 0.0f, 1.0f),
+            .color    = marker.color,
+            .midpoint = {
+                .ratio = std::clamp(marker.midpoint.ratio, 0.0f, 1.0f),
+                .pos   = std::min(marker.midpoint.pos, 1.0f)}};
+        m_markers.push_back(data);
+    }
+
+    m_state.selected_marker_id   = 0;
+    m_state.selected_midpoint_id = 0;
+    m_state.marker_id_counter    = static_cast<int32_t>(std::ssize(m_markers));
+
+    sortMarkers();
+    updateMidpointsPos();
+}
+
+// マーカー位置昇順にソートするヘルパー
+void GradientMarkerManager::sortMarkers()
+{
+    std::sort(m_markers.begin(), m_markers.end(),
+              [](const GradientMarkerData& a, const GradientMarkerData& b) {
+                  return a.pos < b.pos;
+              });
+}
+
+// ID を基準に昇順にソート
+void GradientMarkerManager::sortMarkersById()
+{
+    std::sort(m_markers.begin(), m_markers.end(),
+              [](const GradientMarkerData& a, const GradientMarkerData& b) {
+                  return a.id < b.id;
+              });
+}
+
+void GradientMarkerManager::moveMarker(const int32_t id, const float new_pos)
+{
+    int32_t idx = getIndexById(id);
+    if (idx == -1) return;
+
+    // 位置を更新
+    m_markers[idx].pos = std::clamp(new_pos, 0.0f, 1.0f);
+
+    sortMarkers();
+    updateMidpointsPos();
+}
+
+void GradientMarkerManager::moveMidpoint(const int32_t id, const float new_pos)
+{
+    int idx = getIndexById(id);
+    if (std::ssize(m_markers) - 1 <= idx) return;
+
+    float left_pos  = m_markers[idx].pos;
+    float right_pos = m_markers[idx + 1].pos;
+    float range     = right_pos - left_pos;
+
+    if (range <= 0.0001f) return;
+
+    // 比率を計算して保存
+    float ratio                   = (new_pos - left_pos) / range;
+    m_markers[idx].midpoint.ratio = std::clamp(ratio, 0.0f, 1.0f);
+
+    // 表示用の座標更新
+    updateMidpointsPos();
+}
+
+void GradientMarkerManager::moveMidpointRatio(const int32_t id, const float new_ratio)
+{
+    int idx = getIndexById(id);
+    if (std::ssize(m_markers) - 1 <= idx) return;
+    m_markers[idx].midpoint.ratio = std::clamp(new_ratio, 0.0f, 1.0f);
+    // 表示用の座標更新
+    updateMidpointsPos();
+}
+
+void GradientMarkerManager::reverseMarkers()
+{
+    int32_t right_midpoint_idx = getIndexById(m_state.selected_midpoint_id) + 1;
+    int32_t right_midpoint_id  = m_state.selected_midpoint_id;
+    std::vector<float> old_midpoints(static_cast<uint32_t>(std::ssize(m_markers) - 1));
+    // 逆順にする
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        marker.pos = std::clamp(1.0f - marker.pos, 0.0f, 1.0f);
+        if (i < static_cast<uint32_t>(std::ssize(m_markers)) - 1) {
+            old_midpoints[i] = marker.midpoint.ratio;
+        }
+        if (i == right_midpoint_idx) {
+            right_midpoint_id = marker.id;
+        }
+    }
+
+    std::ranges::reverse(old_midpoints.begin(), old_midpoints.end());
+
+    sortMarkers();
+
+    // 中間点
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        if (i < static_cast<uint32_t>(std::ssize(m_markers)) - 1) {
+            setMidpointRatio(marker.id, std::clamp(1.0f - old_midpoints[i], 0.0f, 1.0f));
+        }
+    }
+    m_state.selected_midpoint_id = right_midpoint_id;
+
+    updateMidpointsPos();
+}
+
+void GradientMarkerManager::resetMidpoints()
+{
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        if (i < static_cast<uint32_t>(std::ssize(m_markers)) - 1) {
+            setMidpointRatio(marker.id, 0.5f);
+        }
+    }
+}
+
+void GradientMarkerManager::addMarker(const int32_t id, const float marker_pos, const ImVec4& color, const float midpoint_ratio)
+{
+    GradientMarkerData new_marker;
+    new_marker.id             = id;
+    new_marker.pos            = marker_pos;
+    new_marker.color          = color;
+    new_marker.midpoint.ratio = midpoint_ratio;
+
+    m_markers.push_back(new_marker);
+
+    sortMarkers();
+    updateMidpointsPos();  // 中間点の位置は追加後に前後のマーカー位置から計算する
+}
+
+void GradientMarkerManager::onClickedMarker(const ImVec2& mouse_pos, bool use_default_action, std::move_only_function<void(void*)> func, void* param)
+{
+    if (use_default_action) {
+        return;
+    } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_state.is_open_popup) {
+        if (getMarkerIdUnderMouse(mouse_pos) >= 0) {
+            func(param);
+        }
+    }
+}
+
+void GradientMarkerManager::showColorPickerPopup()
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 2));
+    ImGui::PushStyleVarX(ImGuiStyleVar_ItemInnerSpacing, 2);
+
+    if (ImGui::BeginPopup("marker_color_picker")) {
+        m_state.is_open_popup = true;
+        changeColor(m_state.selected_marker_id, m_state.picker_cur_color);
+
+        // メインのカラーピッカー
+        ImGui::ColorPicker4("##marker_color_picker", (float*)&m_state.picker_cur_color, ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoSmallPreview | ImGuiColorEditFlags_AlphaBar);
+        ImGui::SameLine();
+
+        ImGui::BeginGroup();
+        ImGui::Text("Current");
+        ImGuiColorEditFlags color_button_flags = ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_AlphaPreviewHalf;
+        ImVec2 color_button_size               = ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().x * 0.6f);
+        ImGui::ColorButton("##current", m_state.picker_cur_color, color_button_flags, color_button_size);
+
+        ImGui::Text("Previous");
+        if (ImGui::ColorButton("##previous", m_state.picker_backup_color, color_button_flags, color_button_size)) {
+            m_state.picker_cur_color = m_state.picker_backup_color;
+        }
+
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        ImGui::Dummy(ImVec2(avail.x, avail.y - ImGui::GetFrameHeightWithSpacing()));
+        if (ImGui::Button("close", ImVec2(avail.x, ImGui::GetFrameHeight()))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndGroup();
+        ImGui::EndPopup();
+    } else {
+        m_state.is_open_popup = false;
+    }
+
+    ImGui::PopStyleVar(2);
+}
+
+void GradientMarkerManager::onDoubleClickedMarker(const ImVec2& mouse_pos, bool use_default_action, std::move_only_function<void(void*)> func, void* param)
+{
+    ImGui::PushID(this);
+    // デフォルトの挙動はカラーピッカーを開く
+    if (use_default_action) {
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !m_state.is_open_popup) {
+            if (getMarkerIdUnderMouse(mouse_pos) >= 0) {
+                m_state.selected_marker_id  = getMarkerIdUnderMouse(mouse_pos);
+                m_state.picker_backup_color = m_state.picker_cur_color;
+                m_state.picker_cur_color    = getMarkerColor(m_state.selected_marker_id);
+                ImGui::OpenPopup("marker_color_picker");
+            }
+        }
+    } else {
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !m_state.is_open_popup) {
+            if (getMarkerIdUnderMouse(mouse_pos) >= 0) {
+                func(param);
+            }
+        }
+    }
+
+    ImGui::PopID();
+}
+
+void GradientMarkerManager::changeColor(const int32_t id, const ImVec4& new_color)
+{
+    int32_t idx = getIndexById(id);
+    if (idx == -1) return;
+    m_markers[idx].color = new_color;
+}
+
+// 比率に基づいて中間点の絶対座標を再計算する
+void GradientMarkerManager::updateMidpointsPos()
+{
+    for (size_t i = 0; i < m_markers.size() - 1; ++i) {
+        float left_pos  = m_markers[i].pos;
+        float right_pos = m_markers[i + 1].pos;
+        float ratio     = m_markers[i].midpoint.ratio;
+
+        // 左隣のマーカーとの距離に基づいて位置を更新
+        m_markers[i].midpoint.pos = left_pos + (right_pos - left_pos) * ratio;
+    }
+}
+
+void GradientMarkerManager::updateMarkerId()
+{
+    sortMarkersById();  // IDが小さい順に昇順ソート
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        // IDを再度割り当てる
+        marker.id = static_cast<int32_t>(i);
+    }
+    m_state.marker_id_counter = static_cast<int32_t>(std::ssize(m_markers));
+    sortMarkers();  // 位置順に昇順ソートして元の並びに戻す
+}
+
+void GradientMarkerManager::updateMarker(const ImVec2& mouse_pos, const ImVec4& new_marker_color, const uint32_t max_marker_count)
+{
+    // クリックされた位置にあるマーカーIDを取得
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_state.is_open_popup) {
+        m_state.clicked_marker_id = getMarkerIdUnderMouse(mouse_pos);
+        if (m_state.clicked_marker_id >= 0) {
+            m_state.selected_marker_id = m_state.clicked_marker_id;
+        }
+    }
+
+    // マーカーをクリックかつドラッグ状態ならマーカーを動かす
+    if (m_state.clicked_marker_id >= 0 && ImGui::IsMouseDragging(ImGuiMouseButton_Left)  && !m_state.is_open_popup) {
+        m_state.is_marker_added = false;  // 追加モードではない
+        float marker_pos        = getMarkerPosFromMousePos(mouse_pos);
+        moveMarker(m_state.selected_marker_id, marker_pos);
+    } else if (m_state.clicked_marker_id == std::to_underlying(Region::Marker) && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_state.is_open_popup && std::ssize(m_markers) < max_marker_count) {
+        // クリックされた位置がマーカー描画領域内かつ、マーカーの最大数未満なら
+        // クリック位置にマーカーを作成
+        float marker_pos = getMarkerPosFromMousePos(mouse_pos);
+        addMarker(m_state.marker_id_counter, marker_pos, new_marker_color);
+        m_state.is_marker_added = true;
+
+        m_state.selected_marker_id = m_state.marker_id_counter;  // 追加したマーカーを選択状態にする
+        m_state.clicked_marker_id  = m_state.marker_id_counter;
+
+        ++m_state.marker_id_counter;
+    } else {
+        m_state.is_marker_added = false;
+    }
+
+    return;
+}
+
+void GradientMarkerManager::updateMidpoint(const ImVec2& mouse_pos)
+{
+    // クリックされた位置にあるマーカーIDを取得
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_state.is_open_popup) {
+        m_state.clicked_midpoint_id = getMidpointIdUnderMouse(mouse_pos);
+        if (m_state.clicked_midpoint_id >= 0) {
+            m_state.selected_midpoint_id = m_state.clicked_midpoint_id;
+        }
+    }
+
+    // マーカーをクリックかつドラッグ状態ならマーカーを動かす
+    if (m_state.clicked_midpoint_id >= 0 && ImGui ::IsMouseDragging(ImGuiMouseButton_Left) && !m_state.is_open_popup) {
+        m_state.selected_midpoint_id = m_state.clicked_midpoint_id;
+
+        float marker_pos = getMarkerPosFromMousePos(mouse_pos);
+        moveMidpoint(m_state.selected_midpoint_id, marker_pos);
+    }
+
+    return;
+}
+
+int32_t GradientMarkerManager::getMarkerIdUnderMouse(const ImVec2& mouse_pos) const
+{
+    bool is_in_marker_region =
+        (mouse_pos.x >= m_regions.marker_p0.x - m_config.marker_width * 0.5f) &&
+        (mouse_pos.x < m_regions.marker_p1.x + m_config.marker_width * 0.5f) &&
+        (mouse_pos.y >= m_regions.marker_p0.y) &&
+        (mouse_pos.y < m_regions.marker_p1.y);
+
+    if (is_in_marker_region) {
+        for (const auto& marker : m_markers) {
+            float marker_center_pos_x = m_regions.gradient_p0.x + (m_regions.gradient_p1.x - m_regions.gradient_p0.x) * marker.pos;
+            ImVec2 p0                 = ImVec2(marker_center_pos_x - m_config.marker_width * 0.5f, m_regions.marker_p0.y);
+            ImVec2 p1                 = ImVec2(marker_center_pos_x + m_config.marker_width * 0.5f, m_regions.marker_p1.y);
+            if (mouse_pos.x >= p0.x && mouse_pos.x <= p1.x &&
+                mouse_pos.y >= p0.y && mouse_pos.y <= p1.y) {
+                return marker.id;
+            }
+        }
+        return std::to_underlying(Region::Marker);
+    }
+    return std::to_underlying(Region::OutSide);
+}
+
+// midpointId == markerid
+int32_t GradientMarkerManager::getMidpointIdUnderMouse(const ImVec2& mouse_pos) const
+{
+    bool is_in_midpoint_region =
+        (mouse_pos.x >= m_regions.midpoint_p0.x) &&
+        (mouse_pos.x < m_regions.midpoint_p1.x) &&
+        (mouse_pos.y >= m_regions.midpoint_p0.y) &&
+        (mouse_pos.y < m_regions.midpoint_p1.y);
+
+    if (is_in_midpoint_region) {
+        for (const auto& marker : m_markers | std::views::take(std::ssize(m_markers) - 1)) {
+            float midpoint_center_pos_x = m_regions.midpoint_p0.x + (m_regions.midpoint_p1.x - m_regions.midpoint_p0.x) * marker.midpoint.pos;
+            ImVec2 p0                   = ImVec2(midpoint_center_pos_x - m_config.midpoint_width * 0.5f, m_regions.midpoint_p0.y);
+            ImVec2 p1                   = ImVec2(midpoint_center_pos_x + m_config.midpoint_width * 0.5f, m_regions.midpoint_p1.y);
+            if (mouse_pos.x >= p0.x && mouse_pos.x <= p1.x &&
+                mouse_pos.y >= p0.y && mouse_pos.y <= p1.y) {
+                return marker.id;
+            }
+        }
+        return std::to_underlying(Region::Midpoint);
+    }
+    return std::to_underlying(Region::OutSide);
+}
+
+ImVec2 GradientMarkerManager::getMousePosOnGradient(const ImVec2& mouse_pos) const
+{
+    ImVec2 mouse_pos_on_gradient;
+    mouse_pos_on_gradient.x = mouse_pos.x - m_regions.gradient_p0.x;
+    mouse_pos_on_gradient.y = mouse_pos.y - m_regions.gradient_p0.y;
+
+    return mouse_pos_on_gradient;
+}
+
+void GradientMarkerManager::deleteMarker(const int32_t id)
+{
+    if (std::ssize(m_markers) <= 2) return;
+
+    int idx = getIndexById(id);
+    if (idx == -1) return;
+
+    // 削除
+    m_markers.erase(m_markers.begin() + idx);
+
+    updateMidpointsPos();
+    updateMarkerId();
+
+    // 次に選択する ID を更新 (削除した位置にある要素、または末尾ならその前)
+    if (idx < std::ssize(m_markers)) {
+        m_state.selected_marker_id = m_markers[idx].id;
+    } else {
+        m_state.selected_marker_id = m_markers.back().id;
+    }
+
+    // 選択中の中間点 ID が不正になった場合
+    if (getIndexById(m_state.selected_midpoint_id) == -1 || getIndexById(m_state.selected_midpoint_id) >= std::ssize(m_markers) - 1) {
+        m_state.selected_midpoint_id = m_markers[0].id;
+    }
+}
+
+void GradientMarkerManager::deleteSelectedMarker()
+{
+    deleteMarker(m_state.selected_marker_id);
+}
+
+void GradientMarkerManager::distributeMarkersEvenly()
+{
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        moveMarker(marker.id, i / static_cast<float>(std::ssize(m_markers) - 1));
+    }
+}
+
+void GradientMarkerManager::distributeMarkersAndMipointsEvenly()
+{
+    distributeMarkersEvenly();
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        if (i < static_cast<float>(std::ssize(m_markers) - 1)) {
+            moveMidpoint(marker.id, (i + 1) / static_cast<float>(std::ssize(m_markers)));
+        }
+    }
+}
+
+void GradientMarkerManager::drawMarker(const float pos, const ImVec4& color, const int32_t id) const
+{
+    ImVec2 p0             = ImVec2(m_regions.marker_p0.x + (m_regions.marker_p1.x - m_regions.marker_p0.x) * pos - (m_config.marker_width * 0.5f), m_regions.marker_p0.y);
+    ImVec2 p1             = ImVec2(m_regions.marker_p0.x + (m_regions.marker_p1.x - m_regions.marker_p0.x) * pos + (m_config.marker_width * 0.5f), m_regions.marker_p1.y);
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    float triangle_height = static_cast<float>(m_config.triangle_height);
+    // 三角形を描画
+    draw_list->AddTriangleFilled(
+        ImVec2(p0.x + m_config.marker_width * 0.5f, p0.y),
+        ImVec2(p1.x, p0.y + triangle_height),
+        ImVec2(p0.x, p0.y + triangle_height),
+        ImGui::ColorConvertFloat4ToU32(ImVec4(204.0f / 255.0f, 204.0f / 255.0f, 204.0f / 255.0f, 1.0f)));
+
+    draw_list->AddTriangle(
+        ImVec2(p0.x + m_config.marker_width * 0.5f, p0.y),
+        ImVec2(p1.x, p0.y + triangle_height),
+        ImVec2(p0.x, p0.y + triangle_height),
+        IM_COL32(255, 255, 255, 255), 1.0f);
+
+    p0.y += triangle_height;
+
+    ImGui::PushID(id);
+    ImVec2 backup = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(p0);
+    ImGuiColorEditFlags flags = ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoOptions | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoDragDrop;
+    ImGui::ColorButton("##marker_color", color, flags, ImVec2(static_cast<float>(m_config.marker_width), static_cast<float>(m_config.marker_width)));
+    ImGui::SetCursorScreenPos(backup);
+    ImGui::PopID();
+
+    draw_list->AddRect(p0, p1, IM_COL32(0, 0, 0, 255), 0, 0, 3.0f);
+    draw_list->AddRect(p0, p1, IM_COL32(255, 255, 255, 255), 0, 0, 1.0f);
+}
+
+void GradientMarkerManager::drawMarkers() const
+{
+    int32_t selected_marker_idx = -1;
+    for (const auto& [i, marker] : m_markers | std::views::enumerate) {
+        // 選択中のマーカーは最前面に描画する
+        if (marker.id == m_state.selected_marker_id) {
+            selected_marker_idx = static_cast<int32_t>(i);
+            continue;
+        }
+        drawMarker(marker.pos, marker.color, marker.id);
+    }
+
+    if (selected_marker_idx >= 0) {
+        drawMarker(m_markers.at(selected_marker_idx).pos, m_markers.at(selected_marker_idx).color, m_markers.at(selected_marker_idx).id);
+        highlightMarker(m_markers.at(selected_marker_idx).pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    }
+}
+
+void GradientMarkerManager::drawMidpoint(const float pos, const ImVec4& color) const
+{
+    ImVec2 p0     = ImVec2(m_regions.midpoint_p0.x + (m_regions.midpoint_p1.x - m_regions.midpoint_p0.x) * pos - (m_config.midpoint_width * 0.5f), m_regions.midpoint_p0.y);
+    ImVec2 p1     = ImVec2(m_regions.midpoint_p0.x + (m_regions.midpoint_p1.x - m_regions.midpoint_p0.x) * pos + (m_config.midpoint_width * 0.5f), m_regions.midpoint_p1.y);
+    ImVec2 center = ImVec2(p0.x + (p1.x - p0.x) * 0.5f, p0.y + (p1.y - p0.y) * 0.5f);
+
+    ImU32 u32color        = ImGui::ColorConvertFloat4ToU32(color);
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddNgon(center, m_config.midpoint_width * 0.5f, u32color, 4, 2.0f);
+}
+
+void GradientMarkerManager::drawMidpoints() const
+{
+    int32_t selected_midpoint_idx = -1;
+    for (const auto& [i, marker] : m_markers | std::views::take(std::ssize(m_markers) - 1) | std::views::enumerate) {
+        // 選択中の中間点は最前面に描画する
+        if (marker.id == m_state.selected_midpoint_id) {
+            selected_midpoint_idx = static_cast<int32_t>(i);
+            continue;
+        }
+        drawMidpoint(marker.midpoint.pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    }
+    if (selected_midpoint_idx >= 0) {
+        drawMidpoint(m_markers.at(selected_midpoint_idx).midpoint.pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        highlightMidpoint(m_markers.at(selected_midpoint_idx).midpoint.pos, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    }
+}
+
+void GradientMarkerManager::highlightMarker(const float pos, const ImVec4& highlight_color, const float thickness, const float offset) const
+{
+    ImVec2 p0 = ImVec2(m_regions.marker_p0.x + (m_regions.marker_p1.x - m_regions.marker_p0.x) * pos - (m_config.marker_width * 0.5f), m_regions.marker_p0.y);
+    ImVec2 p1 = ImVec2(m_regions.marker_p0.x + (m_regions.marker_p1.x - m_regions.marker_p0.x) * pos + (m_config.marker_width * 0.5f), m_regions.marker_p1.y);
+
+    float height = m_regions.marker_p1.y - m_regions.marker_p0.y;
+    p0.y += height - m_config.marker_width;
+
+    p0 = ImVec2(p0.x - offset, p0.y - offset);
+    p1 = ImVec2(p1.x + offset, p1.y + offset);
+
+    ImU32 u32_highlight_color = ImGui::ColorConvertFloat4ToU32(highlight_color);
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddRect(p0, p1, u32_highlight_color, 0.0f, 0, thickness);
+}
+
+void GradientMarkerManager::highlightMidpoint(const float pos, const ImVec4& highlight_color) const
+{
+    ImVec2 p0     = ImVec2(m_regions.midpoint_p0.x + (m_regions.midpoint_p1.x - m_regions.midpoint_p0.x) * pos - (m_config.midpoint_width * 0.5f), m_regions.midpoint_p0.y);
+    ImVec2 p1     = ImVec2(m_regions.midpoint_p0.x + (m_regions.midpoint_p1.x - m_regions.midpoint_p0.x) * pos + (m_config.midpoint_width * 0.5f), m_regions.midpoint_p1.y);
+    ImVec2 center = ImVec2(p0.x + (p1.x - p0.x) * 0.5f, p0.y + (p1.y - p0.y) * 0.5f);
+
+    ImU32 u32color        = ImGui::ColorConvertFloat4ToU32(highlight_color);
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddNgonFilled(center, m_config.midpoint_width * 0.5f, u32color, 4);
+}

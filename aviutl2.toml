@@ -1,0 +1,37 @@
+#:schema ./.aviutl2-cli/aviutl2.schema.json
+# 設定ファイルについては https://github.com/sevenc-nanashi/aviutl2-cli を参照してください。
+[project]
+name = "GradientEditor"
+version = "0.1.0"
+
+[artifacts.GradientEditor_aux2]
+destination = "Plugin/GradientEditor.aux2"
+
+[artifacts.GradientEditor_aux2.profiles.debug]
+source = "./out/build/windows-x64-debug/Debug/GradientEditor.aux2"
+build = "cmake --workflow debug-flow"
+
+[artifacts.GradientEditor_aux2.profiles.release]
+source = "./out/build/windows-x64-release/Release/GradientEditor.aux2"
+build = "cmake --workflow release-flow"
+
+[artifacts.GradientEditor_anm2]
+build = "cd ./script && aulua build"
+source = "./script/@GradientEditor.anm2"
+destination = "Script/@GradientEditor.anm2"
+
+[artifacts.English_GradientEditor_aul2]
+source = "./translations/English.GradientEditor.aul2"
+destination = "Language/English.GradientEditor.aul2"
+
+[development]
+aviutl2_version = "latest"
+
+[preview]
+
+[release]
+package_template = "package.txt"
+profile = "release"
+output_dir = "release"
+zip_name = "{name}-v{version}"
+include = ["GradientEditor_aux2", "GradientEditor_anm2", "English_GradientEditor_aul2"]

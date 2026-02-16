@@ -1,0 +1,32 @@
+#ifndef PRESET_WINDOW_H
+#define PRESET_WINDOW_H
+
+#include "gradient_data.h"
+#include "gradient_preset.h"
+
+namespace gradient_editor {
+
+class PresetWindow {
+public:
+    void render(bool* is_open, PresetManager& manager, preset_file::GradientPresetFile& file);
+
+    bool isClickedPreset() const noexcept { return m_is_clicked_preset; }
+    [[nodiscard]] gradient_editor::GradientData getSelectedGradientData() const noexcept { return m_selected_gradient; }
+    [[nodiscard]] gradient_editor::GradientData getTargetGradientData() const noexcept { return m_selected_gradient; }
+    void setTargetGradientData(const gradient_editor::GradientData& data) noexcept { m_target_gradient_data = data; }
+
+private:
+    bool m_is_init           = false;
+    char m_preset_name[32]   = "";
+    bool m_is_clicked_preset = false;
+    gradient_editor::GradientData m_selected_gradient;
+    uint32_t m_selected_preset_index = 0;
+
+    gradient_editor::GradientData m_target_gradient_data;
+
+    void renderPresetList(PresetManager& manager, preset_file::GradientPresetFile& file);
+};
+
+}  // namespace gradient_editor
+
+#endif
