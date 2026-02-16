@@ -1,5 +1,8 @@
 # AviUtl2 GradientEditor
 
+![GitHub License](https://img.shields.io/github/license/azurite581/AviUtl2-GradientEditor)
+![GitHub Release](https://img.shields.io/github/v/release/azurite581/AviUtl2-GradientEditor)
+
 ![splash](assets/gradient_editor.png)
 
 [AviUtl2](https://spring-fragrance.mints.ne.jp/aviutl/) 用のグラデーションエディタです。付属する以下のエフェクトを編集することができます。
@@ -15,7 +18,7 @@
 
 ## 導入
 
-Releases から `GradientEditor_v{version}.au2pkg.zip` をダウンロードし、AviUtl2 のプレビューにドラッグ&ドロップしてください。
+[Releases](https://github.com/azurite581/AviUtl2-GradientEditor/releases) から `GradientEditor_v{version}.au2pkg.zip` をダウンロードし、AviUtl2 のプレビューにドラッグ&ドロップしてください。
 
 以下のファイルがインストールされます。
 
@@ -66,17 +69,19 @@ Releases から `GradientEditor_v{version}.au2pkg.zip` をダウンロードし�
 ### グラデーションマップ（`GradientMap@GradientEditor`）
 
 ![GradientMap](assets/gradient_map.png)
+Image by <a href="https://pixabay.com/users/pavanprasad_ind-22614562/?utm_source=link-attribution&utm_medium=referral&utm_campaign=image&utm_content=9076520">Pavan Prasad</a> from <a href="https://pixabay.com//?utm_source=link-attribution&utm_medium=referral&utm_campaign=image&utm_content=9076520">Pixabay</a>
 
 グラデーションマップを適用するスクリプトです。デフォルトでは `色調整` カテゴリの中にあります。
 
 #### パラメーター
 
 - `強さ`  
-グラデーションマップの適用度合い。
+グラデーションマップの適用度
 - `ルーマ`  
-[ルーマ](https://ja.wikipedia.org/wiki/%E3%83%AB%E3%83%BC%E3%83%9E)の係数を `Rec. 601` と `Rec. 701` のどちらか指定できます。
+[ルーマ](https://ja.wikipedia.org/wiki/%E3%83%AB%E3%83%BC%E3%83%9E)の係数   
+`Rec. 601` と `Rec. 701` のどちらか指定できます。
 - `合成モード`  
-合成モードを選択します。
+グラデーションの合成モード
 - [`共通パラメーター`](#共通パラメーター)
 
 ### 共通パラメーター
@@ -116,7 +121,7 @@ Releases から `GradientEditor_v{version}.au2pkg.zip` をダウンロードし�
 
 #### ③ 対象のエフェクトインデックス
 
-② で指定したエフェクトが複数ある場合、どのエフェクトを編集対象とするかをインデックス（上から 0, 1, 2 ...）で指定します。
+② で指定したエフェクトが複数ある場合、どのエフェクトを編集対象とするかを番号（上から 0, 1, 2 ...）で指定します。
 
 #### ④ 反映
 
@@ -156,7 +161,7 @@ Releases から `GradientEditor_v{version}.au2pkg.zip` をダウンロードし�
 
 #### 同じエフェクトが 1 つのオブジェクトに複数適用されている場合
 
-1 つのオブジェクトに同じエフェクトが複数ある場合、上から順に番号（0, 1, 2...）が割り振られるため、`対象` コンボボックスの右隣にあるコントロールにてその番号を指定することで、編集対象のエフェクトを変更できます。  
+1 つのオブジェクトに同じエフェクトが複数ある場合、どのエフェクトを編集対象とするかを `対象` コンボボックスの右隣にあるコントロールにて、番号（上から 0, 1, 2 ...）で指定できます。  
 例えば上から 2 番目のエフェクトにグラデーションエディタの値を反映させたい場合は 1 に設定します。
 
 #### セクションの指定
