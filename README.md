@@ -1,7 +1,8 @@
 # AviUtl2 GradientEditor
 
 ![GitHub License](https://img.shields.io/github/license/azurite581/AviUtl2-GradientEditor)
-![GitHub Release](https://img.shields.io/github/v/release/azurite581/AviUtl2-GradientEditor)
+[![GitHub Release](https://img.shields.io/github/v/release/azurite581/AviUtl2-GradientEditor)](https://github.com/azurite581/AviUtl2-GradientEditor/releases/latest)
+![Last Commit](https://img.shields.io/github/last-commit/azurite581/AviUtl2-GradientEditor)
 
 ![splash](assets/gradient_editor.png)
 
