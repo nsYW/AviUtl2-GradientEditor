@@ -19,9 +19,11 @@
 
 ## インストール
 
+次のいずれかの方法でインストールできます。
+
 ### AviUtl2 カタログを使う
 
-本プラグインは [aviutl2-catalog](https://github.com/Neosku/aviutl2-catalog) からインストールできます。  
+本プラグインは [aviutl2-catalog](https://github.com/Neosku/aviutl2-catalog) に登録済みです。  
 メインメニュー ＞ パッケージ一覧 ＞ 汎用プラグイン ＞ GradientEditor からインストールしてください。
 
 ### 手動インストール
