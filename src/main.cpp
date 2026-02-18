@@ -1,6 +1,5 @@
 #include <future>
 #include <thread>
-#include <iostream>
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -97,6 +96,12 @@ EXTERN_C __declspec(dllexport) bool InitializePlugin(DWORD version)
 
 EXTERN_C __declspec(dllexport) void UninitializePlugin()
 {
+    // WM_QUIT を App::run() 内のメッセージループに通知
+    HWND hwnd = g_app_state.window_manager.getWindowHandle();
+    if (hwnd) {
+        ::PostMessage(hwnd, WM_QUIT, 0, 0);
+    }
+
     g_app_state.cleanup();
 }
 
